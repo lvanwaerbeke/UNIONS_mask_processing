@@ -53,6 +53,12 @@ All scripts support either:
 
 The tile list file must contain one tile ID per line.
 
+## Bit definition
+
+The final combined mask is a bit-coded image. The figure below summarizes the current bit assignments and pixel-value convention.
+
+![Mask bit definition](images/mask_bit_definition.png)
+
 ## The 5 intermediate masks
 
 ### 1. Star mask
