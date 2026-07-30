@@ -97,6 +97,19 @@ python3 reg2fits.py \
   --source-templates '/arc/projects/unions/catalogues/unions/GAaP_photometry/UNIONS_DR6/UNIONS.{tile}/r/UNIONS.{tile}_r.fits'
 ```
 
+Parallel tile-list production:
+
+```bash
+python3 reg2fits.py \
+  --tile-list-file DR6_tiles.list \
+  --input-template '/arc/projects/unions/catalogues/unions/GAaP_photometry/UNIONS_DR6/UNIONS.{tile}/r/UNIONS.{tile}_r_maskstars.reg' \
+  --cleaned-template '/arc/projects/unions/catalogues/unions/GAaP_photometry/UNIONS_DR6_stars/UNIONS.{tile}_r_maskstars.fixed.reg' \
+  --output-template '/arc/projects/unions/catalogues/unions/GAaP_photometry/UNIONS_DR6_stars/UNIONS.{tile}_r_maskstars.mask.fits.gz' \
+  --source-templates '/arc/projects/unions/catalogues/unions/GAaP_photometry/UNIONS_DR6/UNIONS.{tile}/r/UNIONS.{tile}_r.fits' \
+  --problem-log reg2fits_stars_problems.log \
+  --jobs 16
+```
+
 ### 2. External polygon mask
 
 This is built in 2 steps.
@@ -153,6 +166,19 @@ python3 reg2fits.py \
   --cleaned-template '/arc/projects/unions/catalogues/unions/GAaP_photometry/ext_polygon_UNIONS/UNIONS.{tile}.ext_polygon.fixed.reg' \
   --output-template '/arc/projects/unions/catalogues/unions/GAaP_photometry/ext_polygon_UNIONS/UNIONS.{tile}.ext_polygon.mask.fits.gz' \
   --source-templates '/arc/projects/unions/catalogues/unions/GAaP_photometry/UNIONS_DR6/UNIONS.{tile}/r/UNIONS.{tile}_r.fits'
+```
+
+Parallel tile-list production:
+
+```bash
+python3 reg2fits.py \
+  --tile-list-file DR6_tiles.list \
+  --input-template '/arc/projects/unions/catalogues/unions/GAaP_photometry/ext_polygon_UNIONS/UNIONS.{tile}.ext_polygon.reg' \
+  --cleaned-template '/arc/projects/unions/catalogues/unions/GAaP_photometry/ext_polygon_UNIONS/UNIONS.{tile}.ext_polygon.fixed.reg' \
+  --output-template '/arc/projects/unions/catalogues/unions/GAaP_photometry/ext_polygon_UNIONS/UNIONS.{tile}.ext_polygon.mask.fits.gz' \
+  --source-templates '/arc/projects/unions/catalogues/unions/GAaP_photometry/UNIONS_DR6/UNIONS.{tile}/r/UNIONS.{tile}_r.fits' \
+  --problem-log reg2fits_extpoly_problems.log \
+  --jobs 16
 ```
 
 ### 3. Ugriz mask
@@ -380,7 +406,6 @@ python3 finalmask_to_binary.py \
 
 - `reg2fits.py`, `trim_edges_mask.py`, `combine_masks.py`, `finalmask_to_binary.py`, and `maximask/make_unions_maximask.py` all support `--tile-list-file`.
 - `cutreg4tile.py` supports either `--tiles ...` or `--tile-list-file`.
-- `combine_masks.py` and `maximask/make_unions_maximask.py` support problem logs and continue past failed tiles.
+- `reg2fits.py`, `combine_masks.py`, and `maximask/make_unions_maximask.py` support problem logs and continue past failed tiles.
 - `trim_edges_mask.py` writes a skipped-tile log for tile IDs missing from `FullSky_tiles_cuts.txt`.
-- `reg2fits.py` supports tile lists, but does not currently have a built-in problem log.
 - The path templates in the examples are production examples from the UNIONS layout and can be adapted if your files live elsewhere.

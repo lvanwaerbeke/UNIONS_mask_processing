@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import math
 import re
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -69,6 +70,17 @@ def parse_args() -> argparse.Namespace:
             "UNIONS.{tile}_r.fits",
         ],
         help="Source FITS templates checked in order for WCS/header information.",
+    )
+    parser.add_argument(
+        "--jobs",
+        type=int,
+        default=1,
+        help="Number of worker processes to use. Use 16 for a 16-CPU machine.",
+    )
+    parser.add_argument(
+        "--problem-log",
+        default="reg2fits_problems.log",
+        help="Log file where missing or unreadable tiles will be recorded.",
     )
     return parser.parse_args()
 
@@ -166,6 +178,7 @@ def format_float(value: float) -> str:
 
 
 def write_cleaned_region_file(path: Path, polygons: list[PolygonRegion]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="ascii") as handle:
         handle.write("# Region file format: DS9 version 4.1\n")
         handle.write("image\n")
@@ -231,7 +244,14 @@ def write_mask_fits(output_path: Path, source_fits: Path, mask: np.ndarray) -> N
     primary.writeto(output_path, overwrite=True)
 
 
-def process_tile(tile: str, args: argparse.Namespace) -> None:
+def append_problem(path: Path, message: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(f"{message}\n")
+        handle.flush()
+
+
+def process_tile(tile: str, args: argparse.Namespace) -> dict[str, object]:
     input_reg = Path(args.input_template.format(tile=tile))
     if not input_reg.exists():
         raise FileNotFoundError(f"Input region file not found: {input_reg}")
@@ -251,20 +271,38 @@ def process_tile(tile: str, args: argparse.Namespace) -> None:
     mask = build_mask(width, height, polygons)
     write_mask_fits(output_fits, source_fits, mask)
 
-    unique_values = sorted(int(value) for value in np.unique(mask))
-    print(f"Tile {tile}")
-    print(f"  Input region file: {input_reg}")
-    print(f"  Cleaned region file: {cleaned_reg}")
-    print(f"  Source FITS: {source_fits}")
-    print(f"  Output FITS: {output_fits}")
+    return {
+        "tile": tile,
+        "input_reg": str(input_reg),
+        "cleaned_reg": str(cleaned_reg),
+        "source_fits": str(source_fits),
+        "output_fits": str(output_fits),
+        "kept_polygons": stats.kept_polygons,
+        "total_polygons": stats.total_polygons,
+        "skipped_polygons": stats.skipped_polygons,
+        "duplicate_vertices_removed": stats.duplicate_vertices_removed,
+        "unique_values": sorted(int(value) for value in np.unique(mask)),
+        "non_zero_pixels": int(np.count_nonzero(mask)),
+    }
+
+
+def print_result(result: dict[str, object]) -> None:
+    print(f"Tile {result['tile']}")
+    print(f"  Input region file: {result['input_reg']}")
+    print(f"  Cleaned region file: {result['cleaned_reg']}")
+    print(f"  Source FITS: {result['source_fits']}")
+    print(f"  Output FITS: {result['output_fits']}")
     print(
         "  Polygons: "
-        f"{stats.kept_polygons}/{stats.total_polygons} kept, "
-        f"{stats.skipped_polygons} skipped"
+        f"{result['kept_polygons']}/{result['total_polygons']} kept, "
+        f"{result['skipped_polygons']} skipped"
     )
-    print(f"  Duplicate consecutive vertices removed: {stats.duplicate_vertices_removed}")
-    print(f"  Unique mask values present: {unique_values}")
-    print(f"  Non-zero pixels: {int(np.count_nonzero(mask))}")
+    print(
+        f"  Duplicate consecutive vertices removed: "
+        f"{result['duplicate_vertices_removed']}"
+    )
+    print(f"  Unique mask values present: {result['unique_values']}")
+    print(f"  Non-zero pixels: {result['non_zero_pixels']}")
 
 
 def collect_tiles(args: argparse.Namespace) -> list[str]:
@@ -277,8 +315,48 @@ def collect_tiles(args: argparse.Namespace) -> list[str]:
 
 def main() -> int:
     args = parse_args()
-    for tile in collect_tiles(args):
-        process_tile(tile, args)
+    problem_log = Path(args.problem_log)
+    problem_log.parent.mkdir(parents=True, exist_ok=True)
+    problem_log.write_text("", encoding="utf-8")
+
+    processed_count = 0
+    skipped_count = 0
+    tiles = collect_tiles(args)
+
+    if args.jobs <= 1:
+        for tile in tiles:
+            try:
+                result = process_tile(tile, args)
+                print_result(result)
+                processed_count += 1
+            except Exception as exc:
+                skipped_count += 1
+                message = f"{tile} :: {type(exc).__name__}: {exc}"
+                print(f"WARNING: {message}")
+                append_problem(problem_log, message)
+    else:
+        with ProcessPoolExecutor(max_workers=args.jobs) as executor:
+            future_to_tile = {executor.submit(process_tile, tile, args): tile for tile in tiles}
+            for future in as_completed(future_to_tile):
+                tile = future_to_tile[future]
+                try:
+                    result = future.result()
+                    print_result(result)
+                    processed_count += 1
+                except Exception as exc:
+                    skipped_count += 1
+                    message = f"{tile} :: {type(exc).__name__}: {exc}"
+                    print(f"WARNING: {message}")
+                    append_problem(problem_log, message)
+
+    if skipped_count:
+        print(
+            f"Finished with warnings: processed {processed_count} tile(s), "
+            f"skipped {skipped_count} tile(s)."
+        )
+        print(f"Problem log: {problem_log}")
+    else:
+        print(f"Finished: processed {processed_count} tile(s), no skipped tiles.")
     return 0
 
 
