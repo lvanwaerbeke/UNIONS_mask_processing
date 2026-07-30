@@ -10,6 +10,8 @@ This directory contains the standalone scripts and config needed to build the 5 
   - converts DS9 polygon region files into gzip-compressed FITS mask images
 - `trim_edges_mask.py`
   - builds the gzip-compressed trim-edge mask directly from `FullSky_tiles_cuts.txt`
+- `compute_tile_radec_cuts.py`
+  - computes `RAmin`, `RAmax`, `DECmin`, `DECmax` from a tile ID using the wrapped tile-cut convention
 - `combine_masks.py`
   - combines the 5 mask layers into the final gzip-compressed mask
 - `maximask/make_unions_maximask.py`
@@ -191,6 +193,22 @@ python3 trim_edges_mask.py \
   --source-templates '/arc/projects/unions/catalogues/unions/GAaP_photometry/UNIONS_DR6/UNIONS.{tile}/r/UNIONS.{tile}_r.fits' \
   --output-template '/arc/projects/unions/catalogues/unions/GAaP_photometry/UNIONS_DR6_edges/UNIONS.{tile}_r_masktrim.fits.gz'
 ```
+
+If a tile is missing from `FullSky_tiles_cuts.txt`, you can generate the cut values analytically with:
+
+```bash
+python3 compute_tile_radec_cuts.py --tile 000.046
+```
+
+or for a whole list:
+
+```bash
+python3 compute_tile_radec_cuts.py \
+  --tile-list-file tiles_with_no_RADECcuts.list \
+  --output tiles_with_no_RADECcuts.computed.txt
+```
+
+This script applies the wrapped-cut convention used near the RA=0/360 boundary.
 
 ### 5. Maximask
 
