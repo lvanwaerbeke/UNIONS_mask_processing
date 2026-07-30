@@ -14,6 +14,8 @@ This directory contains the standalone scripts and config needed to build the 5 
   - computes `RAmin`, `RAmax`, `DECmin`, `DECmax` from a tile ID using the wrapped tile-cut convention
 - `combine_masks.py`
   - combines the 5 mask layers into the final gzip-compressed mask
+- `finalmask_to_binary.py`
+  - extracts a binary 0/1 FITS mask from the final 16-bit combined mask using any chosen bit selection
 - `maximask/make_unions_maximask.py`
   - runs the maximask pipeline and writes the final gzip-compressed UNIONS maximask
 - `maximask/maximask_config/`
@@ -303,9 +305,80 @@ python3 combine_masks.py \
   --jobs 16
 ```
 
+## Binary extraction from the final mask
+
+`finalmask_to_binary.py` reads `UNIONS.{tile}_final.mask.fits.gz` and writes a binary FITS image containing only `0` and `1`, by activating whichever final-mask bits you select.
+
+To print all accepted `--masks` keywords directly from the command line:
+
+```bash
+python3 finalmask_to_binary.py --list-masks
+```
+
+Bit assignments used by the current final mask:
+
+- `0`: faint star halo
+- `1`: bright star halo
+- `2`: star mask
+- `3`: manual mask / external polygon
+- `4`: `u` footprint
+- `5`: `g` footprint
+- `6`: `r` footprint
+- `7`: `i` footprint
+- `8`: `z` footprint
+- `9`: tile RA/DEC trim
+- `10`: maximask
+- `11`: PanSTARRS `z2` footprint
+- `12-14`: free bits
+
+The main selection syntax is simply:
+
+- `--select trim`
+- `--select manual_mask trim maximask`
+- `--select 3 9 10`
+
+Each selected keyword or bit number is activated in the output binary mask. Any bit that is not selected is ignored.
+
+Single tile:
+
+```bash
+python3 finalmask_to_binary.py \
+  --tile 122.316 \
+  --input-template '/arc/projects/unions/catalogues/unions/GAaP_photometry/UNIONS_DR6_finalmask/UNIONS.{tile}_final.mask.fits.gz' \
+  --output-template '/arc/projects/unions/catalogues/unions/GAaP_photometry/UNIONS_DR6_binary_masks/UNIONS.{tile}_science.binary.fits.gz' \
+  --select manual_mask trim maximask
+```
+
+The example above writes `1` wherever any of these selected mask bits is present in the final mask:
+
+- manual mask
+- trim mask
+- maximask
+
+Tile list:
+
+```bash
+python3 finalmask_to_binary.py \
+  --tile-list-file DR6_tiles.list \
+  --input-template '/arc/projects/unions/catalogues/unions/GAaP_photometry/UNIONS_DR6_finalmask/UNIONS.{tile}_final.mask.fits.gz' \
+  --output-template '/arc/projects/unions/catalogues/unions/GAaP_photometry/UNIONS_DR6_binary_masks/UNIONS.{tile}_science.binary.fits.gz' \
+  --select manual_mask trim maximask \
+  --jobs 16
+```
+
+Another example, recovering exactly the trim-mask footprint in binary form:
+
+```bash
+python3 finalmask_to_binary.py \
+  --tile 122.316 \
+  --input-template '/arc/projects/unions/catalogues/unions/GAaP_photometry/UNIONS_DR6_finalmask/UNIONS.{tile}_final.mask.fits.gz' \
+  --output-template '/arc/projects/unions/catalogues/unions/GAaP_photometry/UNIONS_DR6_binary_masks/UNIONS.{tile}_trim.binary.fits.gz' \
+  --select trim
+```
+
 ## Notes
 
-- `reg2fits.py`, `trim_edges_mask.py`, `combine_masks.py`, and `maximask/make_unions_maximask.py` all support `--tile-list-file`.
+- `reg2fits.py`, `trim_edges_mask.py`, `combine_masks.py`, `finalmask_to_binary.py`, and `maximask/make_unions_maximask.py` all support `--tile-list-file`.
 - `cutreg4tile.py` supports either `--tiles ...` or `--tile-list-file`.
 - `combine_masks.py` and `maximask/make_unions_maximask.py` support problem logs and continue past failed tiles.
 - `trim_edges_mask.py` writes a skipped-tile log for tile IDs missing from `FullSky_tiles_cuts.txt`.
