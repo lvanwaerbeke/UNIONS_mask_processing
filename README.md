@@ -222,6 +222,23 @@ python3 trim_edges_mask.py \
   --output-template '/arc/projects/unions/catalogues/unions/GAaP_photometry/UNIONS_DR6_edges/UNIONS.{tile}_r_masktrim.fits.gz'
 ```
 
+Parallel tile-list production:
+
+```bash
+python3 trim_edges_mask.py \
+  --tile-list-file DR6_tiles.list \
+  --tile-cuts data/FullSky_tiles_cuts.txt \
+  --source-templates '/arc/projects/unions/catalogues/unions/GAaP_photometry/UNIONS_DR6/UNIONS.{tile}/r/UNIONS.{tile}_r.fits' \
+  --output-template '/arc/projects/unions/catalogues/unions/GAaP_photometry/UNIONS_DR6_edges/UNIONS.{tile}_r_masktrim.fits.gz' \
+  --missing-tiles-log skipped_trim_tiles.log \
+  --problem-log trim_edges_mask_problems.log \
+  --jobs 16
+```
+
+Missing IDs from `FullSky_tiles_cuts.txt` are written immediately to `--missing-tiles-log`. Other per-tile failures, such as missing or unreadable source FITS files, are written immediately to `--problem-log`. Processing continues with the remaining tiles.
+
+Each worker holds a full trim mask in memory. If 16 workers exceed the available RAM, reduce `--jobs` while leaving `--row-chunk-size` unchanged.
+
 If a tile is missing from `FullSky_tiles_cuts.txt`, you can generate the cut values analytically with:
 
 ```bash
@@ -407,5 +424,5 @@ python3 finalmask_to_binary.py \
 - `reg2fits.py`, `trim_edges_mask.py`, `combine_masks.py`, `finalmask_to_binary.py`, and `maximask/make_unions_maximask.py` all support `--tile-list-file`.
 - `cutreg4tile.py` supports either `--tiles ...` or `--tile-list-file`.
 - `reg2fits.py`, `combine_masks.py`, and `maximask/make_unions_maximask.py` support problem logs and continue past failed tiles.
-- `trim_edges_mask.py` writes a skipped-tile log for tile IDs missing from `FullSky_tiles_cuts.txt`.
+- `trim_edges_mask.py` supports parallel tile processing, writes missing cut IDs to `--missing-tiles-log`, and records other tile failures in `--problem-log`.
 - The path templates in the examples are production examples from the UNIONS layout and can be adapted if your files live elsewhere.
